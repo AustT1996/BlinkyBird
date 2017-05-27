@@ -47,7 +47,7 @@ global n_jaw, jaw_list
 n_jaw = 0
 jaw_sum = 0
 jaw_list = []
-N_REQ_JAW = 5
+N_REQ_JAW = 4
 
 # Methods for handling the blinking and jaw clenching
 def eeg_handler(unused_addr, args, ch1, ch2, ch3, ch4):
@@ -61,13 +61,12 @@ def eeg_handler(unused_addr, args, ch1, ch2, ch3, ch4):
         moving_avg /= n
         n = 0
         # print(moving_avg)
-        if baseline is not None and game is not None:
+        if baseline is not None and game is not None and game.RUN:
             if moving_avg < 0.975 * baseline:
-                # print("Blink #{}. Avg = {:.2f}".format(n_blinks, moving_avg))
-                if game is not None and game.RUN:
-                    game.onBlink(blink_intensity_func(moving_avg, baseline))
+                game.onBlink(blink_intensity_func(moving_avg, baseline))
             elif game.PAUSED:
-                if moving_avg > 1.1 * baseline:
+                print("Destroy crit: {}".format(moving_avg/baseline))
+                if moving_avg > 1.35 * baseline:
                     game.destroy()
                 
 def jaw_handler(addr, args, is_clench):
@@ -76,9 +75,10 @@ def jaw_handler(addr, args, is_clench):
         n_jaw += 1
         jaw_sum += int(is_clench)
     else:
-        avg = jaw_sum / n_jaw
-        print(avg)
-        if avg > 0.6:
+        avg = jaw_sum / N_REQ_JAW
+        print("Avg = {}".format(avg))
+        if avg > 0.9:
+            print(game.RUN)
             game.pause()  
         n_jaw = 0
         jaw_sum = 0
@@ -306,7 +306,7 @@ class KeepUpGame:
         """
         Runs the game
         """
-        if self.RUN is True:
+        if self.RUN and not self.PAUSED:
             self.time += 1
             self.clock['text']="TIME:" + str(self.time//100)
             self.h_box['text'] = "Height: {:0>4.0f}".format(HEIGHT - self.y)
@@ -338,17 +338,18 @@ class KeepUpGame:
             self.canvas.unbind("<ButtonPress-1>")
             
     def destroy(self):
-        if not self.RUN and self.PAUSED:
+        if self.RUN and self.PAUSED:
             self.rects = []
             self.paint()
             
     def pause(self):
         if not self.PAUSED and self.RUN:
+            print("PAUSED")
             self.PAUSED = True
-            self.RUN = False
+            self.clock['text']="PAUSED"
         else:
             self.PAUSED = False
-            self.RUN = True
+            self.run()
 
 # Start up the server
 t = threading.Thread(target=start_server)
