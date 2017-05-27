@@ -27,7 +27,7 @@ DT = 0.1
 VX = 5
 
 # Mouse testing variables
-TEST_MODE = True
+TEST_MODE = False
 MOUSE_INTENSITY = .15
 
 # Variables to hold blinking stuff
@@ -43,7 +43,7 @@ N_REQ = 35
 n = 0
 moving_avg = 0.
 
-# Methods for handling the blinking
+# Methods for handling the blinking and jaw clenching
 def eeg_handler(unused_addr, args, ch1, ch2, ch3, ch4):
     global n, moving_avg, N_REQ, is_baseline, baseline_list, n_blinks, game
     if is_baseline:
@@ -55,12 +55,20 @@ def eeg_handler(unused_addr, args, ch1, ch2, ch3, ch4):
         moving_avg /= n
         n = 0
         # print(moving_avg)
-        if baseline is not None and moving_avg < 0.975 * baseline:
-            n_blinks += 1
-            # print("Blink #{}. Avg = {:.2f}".format(n_blinks, moving_avg))
-            if game is not None:
-                # print("blink")
-                game.onBlink(blink_intensity_func(moving_avg, baseline))
+        if baseline is not None and game is not None:
+            if moving_avg < 0.975 * baseline:
+                # print("Blink #{}. Avg = {:.2f}".format(n_blinks, moving_avg))
+                if game is not None:
+                    # print("blink")
+                    game.onBlink(blink_intensity_func(moving_avg, baseline))
+            elif game.PAUSED:
+                if moving_avg > 1.1 * baseline:
+                    game.destroy()
+                
+def jaw_handler(addr, args, is_clench):
+    global game
+    if is_clench and game is not None:
+        game.pause()
     
 def get_no_blink_baseline(start=False):
     """
@@ -110,6 +118,7 @@ def start_server():
         dispat = dispatcher.Dispatcher()
         dispat.map("/debug", print)
         dispat.map("/muse/eeg", eeg_handler, "EEG")
+        dispat.map("/muse/elements/jaw_clench", jaw_handler, "elem")
 
         server = osc_server.ThreadingOSCUDPServer(
             (args.ip, args.port), dispat)
@@ -181,6 +190,7 @@ class KeepUpGame:
         """       
         self.time=0
         self.RUN=True
+        self.PAUSED = False
         
         self.x=0
         self.y=HEIGHT / 2
@@ -312,6 +322,14 @@ class KeepUpGame:
         self.update_score()
         if TEST_MODE:
             self.canvas.unbind("<ButtonPress-1>")
+            
+    def pause(self):
+        if not self.pause:
+            self.pause = True
+            self.RUN = False
+        else:
+            self.pause = False
+            self.RUN = True
 
 # Start up the server
 t = threading.Thread(target=start_server)
