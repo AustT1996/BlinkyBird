@@ -43,6 +43,12 @@ N_REQ = 35
 n = 0
 moving_avg = 0.
 
+global n_jaw, jaw_list
+n_jaw = 0
+jaw_sum = 0
+jaw_list = []
+N_REQ_JAW = 5
+
 # Methods for handling the blinking and jaw clenching
 def eeg_handler(unused_addr, args, ch1, ch2, ch3, ch4):
     global n, moving_avg, N_REQ, is_baseline, baseline_list, n_blinks, game
@@ -58,17 +64,24 @@ def eeg_handler(unused_addr, args, ch1, ch2, ch3, ch4):
         if baseline is not None and game is not None:
             if moving_avg < 0.975 * baseline:
                 # print("Blink #{}. Avg = {:.2f}".format(n_blinks, moving_avg))
-                if game is not None:
-                    # print("blink")
+                if game is not None and game.RUN:
                     game.onBlink(blink_intensity_func(moving_avg, baseline))
             elif game.PAUSED:
                 if moving_avg > 1.1 * baseline:
                     game.destroy()
                 
 def jaw_handler(addr, args, is_clench):
-    global game
-    if is_clench and game is not None:
-        game.pause()
+    global game, n_jaw, jaw_sum, N_REQ_JAW
+    if n_jaw < N_REQ_JAW:
+        n_jaw += 1
+        jaw_sum += int(is_clench)
+    else:
+        avg = jaw_sum / n_jaw
+        print(avg)
+        if avg > 0.6:
+            game.pause()  
+        n_jaw = 0
+        jaw_sum = 0
     
 def get_no_blink_baseline(start=False):
     """
@@ -153,6 +166,7 @@ class KeepUpGame:
         # Make root
         self.root=tk.Tk()
         self.RUN=False
+        self.PAUSED = False
         
         # Make frame
         self.frame=tk.Frame(bg="black")
@@ -323,12 +337,17 @@ class KeepUpGame:
         if TEST_MODE:
             self.canvas.unbind("<ButtonPress-1>")
             
+    def destroy(self):
+        if not self.RUN and self.PAUSED:
+            self.rects = []
+            self.paint()
+            
     def pause(self):
-        if not self.pause:
-            self.pause = True
+        if not self.PAUSED and self.RUN:
+            self.PAUSED = True
             self.RUN = False
         else:
-            self.pause = False
+            self.PAUSED = False
             self.RUN = True
 
 # Start up the server
