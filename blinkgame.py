@@ -5,13 +5,18 @@ import math
 
 import threading
 import sys
+import subprocess
 import time
+import random
 
 from pythonosc import dispatcher
 from pythonosc import osc_server
 
+# Start the muse connection process
+# subprocess.call('muse-io --osc osc.udp://localhost:5000, --device Muse-9F6A')
+
 # Variables to hold dimensions:
-WIDTH = 300
+WIDTH = 800
 HEIGHT = 500
 D_ZONE_HEIGHT = 50
 
@@ -19,6 +24,7 @@ D_ZONE_HEIGHT = 50
 DEL_P_PER = 200
 blink_intensity_func = lambda blink_int, baseline_int : abs(blink_int - baseline_int) / baseline_int
 DT = 0.1
+VX = 5
 
 # Mouse testing variables
 TEST_MODE = True
@@ -111,6 +117,15 @@ def start_server():
         # Start collecting the staring data
         print("Serving on {}".format(server.server_address))
         server.serve_forever()
+        
+        
+# Class for holding rectanges
+class Rect:
+    def __init__(self, x1, y1, x2, y2):
+        self.x1 = x1
+        self.y1 = y1
+        self.x2 = x2
+        self.y2 = y2
 
 # Class to actually hold the game
 class KeepUpGame:
@@ -136,14 +151,11 @@ class KeepUpGame:
         
         # Pack canvas
         self.canvas=tk.Canvas(self.frame, bg="black",width=WIDTH,height=HEIGHT)
-        
-        # Draw the forbidden zone
-        danger_zone =\
-            self.canvas.create_rectangle(0, 0, WIDTH+5, D_ZONE_HEIGHT, fill='red')
-        # self.d_zone_text = tk.Text(self.frame, bg='red', width=WIDTH, height=40)
-        # self.d_zone_text.insert(tk.END, 'Danger')
         self.canvas.pack()
         self.ball=None # Initialize the ball
+        
+        # Sample rectangles
+        # self.canvas.create_rectangle(WIDTH/2, 0, 20, 100, fill='yellow')
         
         # Put infor buttons
         self.clock=tk.Label(self.frame, bg="black", fg="white")
@@ -170,7 +182,7 @@ class KeepUpGame:
         self.time=0
         self.RUN=True
         
-        self.x=150
+        self.x=0
         self.y=HEIGHT / 2
         self.tempx=self.x
         self.tempy=self.y
@@ -184,6 +196,9 @@ class KeepUpGame:
         if TEST_MODE:
             print('test mode')
             self.canvas.bind("<ButtonPress-1>", self.onMClick)
+            
+        # Set rectangles
+        self.rects = []
         self.run()
         
     def paint(self):
@@ -191,22 +206,29 @@ class KeepUpGame:
         Function to repaint the screen
         """
         
-        self.canvas.delete(self.ball)
+        self.canvas.delete(tk.ALL)
+        
+        # Draw rectangles
+        lost = False
+        # print("Self: {}, {}".format(self.x, self.y))
+        for rect in self.rects:
+            x_draw = rect.x1-self.x+WIDTH/2 
+            self.canvas.create_rectangle(x_draw, rect.y1,
+                                         rect.x2-rect.x1+x_draw, rect.y2, fill='red')
+            # Check if it was in the rectange
+            # print("Rect: ({}, {}), ({}, {})".format(rect.x1, rect.y1, rect.x2, rect.y2))
+            if self.x <= rect.x2 and self.x >= rect.x1 and\
+                self.y >= rect.y1 and self.y <= rect.y2:
+                    print("LOST!!")
+                    lost = True
+                                        
 
-        if self.time//100 <= 120: # time is in ms
-            if self.y <= D_ZONE_HEIGHT:
-                self.lost()
 
-            if self.y <= HEIGHT:
-                self.ball=self.canvas.create_oval(self.x-10*self.size,
-                                             self.y-10*self.size,self.x+10*self.size,
-                                             self.y+10*self.size, fill="white")
-            else:
-                self.lost()
-         
-        else:
-            self.clock['text']="Time's up"
-            self.end()
+        self.ball=self.canvas.create_oval(WIDTH/2-10*self.size,
+                                     self.y-10*self.size,WIDTH/2+10*self.size,
+                                     self.y+10*self.size, fill="white")
+        if self.y >= HEIGHT or lost:
+            self.lost()         
             
     def onBlink(self, intensity):
         """
@@ -231,6 +253,30 @@ class KeepUpGame:
         """
         self.y += self.v * dt
         self.v += self.g * dt
+        if self.y < 0:
+            self.y = 0
+            self.v = 0
+        self.x += VX
+        self.update_rects()
+        
+    def update_rects(self):
+        new_rects = []
+        for rec in self.rects:
+            if rec.x2 > self.x - WIDTH/2:
+                new_rects.append(rec)
+        
+        rand = random.random()
+        new = False
+        if self.x % 500 == 0 and rand > 0.2:
+            new = True
+        elif self.x % 200 == 0 and rand > 0.5:
+            new = True
+        if new:
+            x1 = self.x+WIDTH
+            y1 = random.random()*HEIGHT
+            new_rects.append(Rect(x1, y1, x1+WIDTH/8, y1+200))
+                                      
+        self.rects = new_rects
     
     def run(self):
         """
