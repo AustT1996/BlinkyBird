@@ -20,6 +20,10 @@ DEL_P_PER = 200
 blink_intensity_func = lambda blink_int, baseline_int : abs(blink_int - baseline_int) / baseline_int
 DT = 0.1
 
+# Mouse testing variables
+TEST_MODE = True
+MOUSE_INTENSITY = .15
+
 # Variables to hold blinking stuff
 global n, moving_avg, N_REQ, app, is_baseline,\
     baseline_list, baseline, n_blinks, game
@@ -162,8 +166,7 @@ class KeepUpGame:
     def start(self):
         """
         Function to start the game
-        """
-        
+        """       
         self.time=0
         self.RUN=True
         
@@ -178,7 +181,9 @@ class KeepUpGame:
 
         # not sure what this does
         self.size = 3 # track the current size
-        # self.canvas.bind("<ButtonPress-1>", self.onMClick)
+        if TEST_MODE:
+            print('test mode')
+            self.canvas.bind("<ButtonPress-1>", self.onMClick)
         self.run()
         
     def paint(self):
@@ -211,8 +216,14 @@ class KeepUpGame:
         """
         if self.RUN:
             # Gives a momentum burst proportional 
-            del_p = DEL_P_PER*intensity # kg m/s
+            del_p = -DEL_P_PER*intensity # kg m/s
             self.v += del_p / self.m
+            
+    def onMClick(self, event):
+        """
+        Dummy method for using the mouse instead of the MUSE
+        """
+        self.onBlink(MOUSE_INTENSITY)   
         
     def move(self, dt):
         """
@@ -253,7 +264,8 @@ class KeepUpGame:
         """
         self.RUN=False
         self.update_score()
-        self.canvas.unbind("<ButtonPress-1>")
+        if TEST_MODE:
+            self.canvas.unbind("<ButtonPress-1>")
 
 # Start up the server
 t = threading.Thread(target=start_server)
